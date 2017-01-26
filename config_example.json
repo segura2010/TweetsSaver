@@ -2,5 +2,15 @@
 	"consumerKey":"",
 	"consumerSecret":"",
 	"accessToken":"",
-	"accessSecret":""
+	"accessSecret":"",
+
+	"query":"#Hello",
+	"since":"2017-01-20",
+	"until":"2017-01-25",
+	"location":[40.415178, -3.703697],
+	"radius": 50,
+
+	"seconds": 15,
+
+	"saveType": 0
 }

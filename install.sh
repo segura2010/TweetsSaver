@@ -1,3 +1,3 @@
-go get github.com/dghubble/go-twitter/twitter
-go get github.com/dghubble/oauth1
+go get github.com/kurrik/twittergo
+go get github.com/kurrik/oauth1a
 go get gopkg.in/mgo.v2
