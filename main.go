@@ -11,18 +11,20 @@ import (
 
     "github.com/kurrik/oauth1a"
     "github.com/kurrik/twittergo"
+
+    "TweetsSaver/db"
 )
 
 // MyConfig struct: for the user config to save tweets
 // This is the struct that the config.json must have
 type MyConfig struct {
-    ConsumerKey string `json:"consumerKey"`
+    ConsumerKey string
     ConsumerSecret string
 
     AccessToken string
     AccessSecret string
 
-    Query string `json:"query"`
+    Query string
     Since string // YYYY-MM-DD
     Until string // YYYY-MM-DD
     Location [2]float64 // longitude, latitude
@@ -33,6 +35,16 @@ type MyConfig struct {
     SaveType int
         // 0: saveRecentTweets (search and save every X seconds)
         // 1: saveTweets (search and save ALL tweets from SINCE until UNTIL making requests every X seconds)
+
+    // DB info
+    DbConfig MyDBConfig
+
+}
+type MyDBConfig struct {
+    Host string
+    User string
+    Pass string
+    Name string // DB name
 }
 
 var (
@@ -46,7 +58,6 @@ func LoadConfig(filename string) (MyConfig, error){
     if err != nil {
         return s, err
     }
-    fmt.Printf("%s\n", string(bytes))
     // Unmarshal json
     err = json.Unmarshal(bytes, &s)
     return s, err
@@ -85,7 +96,7 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
     query.Set("result_type", "recent")
 
     for{
-        fmt.Printf("Query: %v", query.Encode())
+        fmt.Printf("\n\nQuery: %v", query.Encode())
         search, err := searchTweets(query)
         if err != nil{
             log.Fatal(err)
@@ -100,9 +111,15 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
                 // sometimes it comes nil, so we put the location info
                 t["coordinates"] = [2]float64{location[0], location[1]}
             }
+            // Unix Timestamp for time
+            t["created_at_unix"] = t.CreatedAt().Unix()
+
             //fmt.Printf("\n%s", t["coordinates"])
-            //fmt.Printf("at %v\n\n", t.CreatedAt().Format(time.RFC1123))
+            //fmt.Printf("at %v\n\n", t.CreatedAt().Unix())
+
+            db.AddTweet(t)
         }
+        fmt.Printf(" -> Saved!")
 
         query, err = search.NextQuery() // next page
         if err != nil {
@@ -125,7 +142,6 @@ func saveRecentTweets(q string, location [2]float64, radius int, seconds int){
     query.Set("result_type", "recent")
 
     for{
-        fmt.Printf("Query: %v", query.Encode())
         search, err := searchTweets(query)
         if err != nil{
             log.Fatal(err)
@@ -140,9 +156,15 @@ func saveRecentTweets(q string, location [2]float64, radius int, seconds int){
                 // sometimes it comes nil, so we put the location info
                 t["coordinates"] = [2]float64{location[0], location[1]}
             }
+            // Unix Timestamp for time
+            t["created_at_unix"] = t.CreatedAt().Unix()
+
             //fmt.Printf("\n%s", t["coordinates"])
-            //fmt.Printf("at %v\n\n", t.CreatedAt().Format(time.RFC1123))
+            //fmt.Printf("at %v\n\n", t.CreatedAt().Unix())
+
+            db.AddTweet(t)
         }
+        fmt.Printf(" -> Saved!")
 
         // sleep
         time.Sleep(time.Duration(seconds) * time.Second)
@@ -156,24 +178,23 @@ func main(){
         fmt.Printf("Error loading config [%s]\n", err)
         return
     }
-    fmt.Printf("%v", config)
 
     oauthConfig := &oauth1a.ClientConfig{
         ConsumerKey:    config.ConsumerKey,
         ConsumerSecret: config.ConsumerSecret,
     }
     user := oauth1a.NewAuthorizedConfig(config.AccessToken, config.AccessSecret)
-    //oauth1.NewConfig(config["consumerKey"], config["consumerSecret"])
-    //token := oauth1.NewToken(config["accessToken"], config["accessSecret"])
-    //httpClient := oauthConfig.Client(oauth1.NoContext, token)
 
     // Twitter client
-    client = twittergo.NewClient(oauthConfig, user) //twitter.NewClient(httpClient)
+    client = twittergo.NewClient(oauthConfig, user)
 
+    // Prepare DB connection
+    db.CreateInstance(config.DbConfig.Host, config.DbConfig.Name, config.DbConfig.User, config.DbConfig.Pass)
+    db.EnsureIndex()
 
     if config.SaveType == 0{
         saveRecentTweets(config.Query, config.Location, config.Radius, config.Seconds)
-    }else if config.SaveType == 0{
+    }else if config.SaveType == 1{
         saveTweets(config.Query, config.Location, config.Radius, config.Seconds, config.Since, config.Until)   
     }
 

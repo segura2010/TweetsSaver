@@ -12,5 +12,12 @@
 
 	"seconds": 15,
 
-	"saveType": 0
+	"saveType": 0,
+
+	"DBConfig": {
+		"host":"localhost",
+		"name":"TweetsSaver",
+		"user":"",
+		"pass":""
+	}
 }
