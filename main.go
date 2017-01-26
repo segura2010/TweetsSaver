@@ -28,7 +28,7 @@ type MyConfig struct {
     Since string // YYYY-MM-DD
     Until string // YYYY-MM-DD
     Location [2]float64 // longitude, latitude
-    Radius int // in km
+    Radius int // in km (be carefully, radius > 5km will result in empty location info: https://twittercommunity.com/t/twitter-search-api-always-return-geo-null/66166/6)
 
     Seconds int // seconds between requests (remember you have 350 request per hour limit!)
 
@@ -45,6 +45,11 @@ type MyDBConfig struct {
     User string
     Pass string
     Name string // DB name
+}
+
+type Location struct {
+    Coordinates [2]float64
+    Type string
 }
 
 var (
@@ -109,7 +114,10 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
 
             if t["coordinates"] == nil{
                 // sometimes it comes nil, so we put the location info
-                t["coordinates"] = [2]float64{location[0], location[1]}
+                t["coordinates"] = Location{
+                    Coordinates: location,
+                    Type: "Point",
+                }
             }
             // Unix Timestamp for time
             t["created_at_unix"] = t.CreatedAt().Unix()
@@ -154,7 +162,10 @@ func saveRecentTweets(q string, location [2]float64, radius int, seconds int){
 
             if t["coordinates"] == nil{
                 // sometimes it comes nil, so we put the location info
-                t["coordinates"] = [2]float64{location[0], location[1]}
+                t["coordinates"] = Location{
+                    Coordinates: location,
+                    Type: "Point",
+                }
             }
             // Unix Timestamp for time
             t["created_at_unix"] = t.CreatedAt().Unix()
