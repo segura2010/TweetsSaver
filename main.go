@@ -94,10 +94,28 @@ func checkRateLimits(resp *twittergo.APIResponse){
     log.Printf("Rate Limit: %d/%d, Rate Limit Reset: %d (%s)", resp.RateLimitRemaining(), resp.RateLimit(), resp.RateLimitReset().Unix(), resp.RateLimitReset().Format(time.RFC1123))
 }
 
+func processTweet(t twittergo.Tweet, location Location){
+    //fmt.Printf("\n\t%s", t.Text())
+    if t["coordinates"] == nil{
+        // sometimes it comes nil, so we put the location info
+        t["coordinates"] = location
+    }
+    // Unix Timestamp for time
+    t["created_at_unix"] = t.CreatedAt().Unix()
+    // delete user info
+    t["user"] = t.User().IdStr()
+
+    db.AddTweet(t)
+}
+
 // Save recent tweets about something in a specific location with id greater than maxid until YYYY-MM-DD
 // to save tweets later..
 func saveTweets(q string, location [2]float64, radius int, seconds int, since, until, maxid string){
     geocode := fmt.Sprintf("%g,%g,%dkm", location[0], location[1], radius)
+    loc := Location{
+        Coordinates: location,
+        Type: "Point",
+    }
 
     query := url.Values{}
     query.Set("q", fmt.Sprintf("%s since:%s until:%s", q, since, until))
@@ -120,21 +138,7 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
         tweets := search.Statuses()
         log.Printf("Got %d tweets", len(tweets))
         for _, t := range tweets{
-            //fmt.Printf("\n\t%s", t.Text())
-
-            if t["coordinates"] == nil{
-                // sometimes it comes nil, so we put the location info
-                t["coordinates"] = Location{
-                    Coordinates: location,
-                    Type: "Point",
-                }
-            }
-            // Unix Timestamp for time
-            t["created_at_unix"] = t.CreatedAt().Unix()
-            // delete user info
-            t["user"] = t.User().IdStr()
-
-            db.AddTweet(t)
+            processTweet(t, loc)
         }
         log.Printf(" -> Saved!")
 
@@ -154,6 +158,10 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
 // Save recent tweets about something in a specific location every X seconds
 func saveRecentTweets(q string, location [2]float64, radius int, seconds int){
     geocode := fmt.Sprintf("%g,%g,%dkm", location[0], location[1], radius)
+    loc := Location{
+        Coordinates: location,
+        Type: "Point",
+    }
 
     query := url.Values{}
     query.Set("q", q)
@@ -171,20 +179,7 @@ func saveRecentTweets(q string, location [2]float64, radius int, seconds int){
         tweets := search.Statuses()
         log.Printf("Got %d tweets", len(tweets))
         for _, t := range tweets{
-
-            if t["coordinates"] == nil{
-                // sometimes it comes nil, so we put the location info
-                t["coordinates"] = Location{
-                    Coordinates: location,
-                    Type: "Point",
-                }
-            }
-            // Unix Timestamp for time
-            t["created_at_unix"] = t.CreatedAt().Unix()
-            // delete user info
-            t["user"] = t.User().IdStr()
-
-            db.AddTweet(t)
+            processTweet(t, loc)
         }
         log.Printf(" -> Saved!")
         
