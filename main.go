@@ -131,6 +131,8 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
             }
             // Unix Timestamp for time
             t["created_at_unix"] = t.CreatedAt().Unix()
+            // delete user info
+            t["user"] = t.User().IdStr()
 
             db.AddTweet(t)
         }
@@ -179,6 +181,8 @@ func saveRecentTweets(q string, location [2]float64, radius int, seconds int){
             }
             // Unix Timestamp for time
             t["created_at_unix"] = t.CreatedAt().Unix()
+            // delete user info
+            t["user"] = t.User().IdStr()
 
             db.AddTweet(t)
         }
