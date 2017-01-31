@@ -11,6 +11,8 @@
 	"radius": 50,
 	"maxid": "",
 
+	"tweetssaver":"additional comment",
+
 	"seconds": 15,
 
 	"saveType": 1,

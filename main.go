@@ -9,6 +9,8 @@ import (
     "net/url"
     "net/http"
 
+    "flag"
+
     "github.com/kurrik/oauth1a"
     "github.com/kurrik/twittergo"
 
@@ -31,6 +33,8 @@ type MyConfig struct {
     Radius int // in km (be carefully, radius > 5km will result in empty location info: https://twittercommunity.com/t/twitter-search-api-always-return-geo-null/66166/6)
     Maxid string // max id to continue the search from this id
 
+    Tweetssaver string // additional comment to include in each tweet (for example to know what machine downloaded the tweet)
+    
     Seconds int // seconds between requests (remember you have 350 request per hour limit!)
 
     SaveType int
@@ -94,7 +98,7 @@ func checkRateLimits(resp *twittergo.APIResponse){
     log.Printf("Rate Limit: %d/%d, Rate Limit Reset: %d (%s)", resp.RateLimitRemaining(), resp.RateLimit(), resp.RateLimitReset().Unix(), resp.RateLimitReset().Format(time.RFC1123))
 }
 
-func processTweet(t twittergo.Tweet, location Location){
+func processTweet(t twittergo.Tweet, location Location, tweetsavercomment string){
     //fmt.Printf("\n\t%s", t.Text())
     if t["coordinates"] == nil{
         // sometimes it comes nil, so we put the location info
@@ -104,13 +108,15 @@ func processTweet(t twittergo.Tweet, location Location){
     t["created_at_unix"] = t.CreatedAt().Unix()
     // delete user info
     t["user"] = t.User().IdStr()
+    // add additional commet
+    t["tweetssaver"] = tweetsavercomment
 
     db.AddTweet(t)
 }
 
 // Save recent tweets about something in a specific location with id greater than maxid until YYYY-MM-DD
 // to save tweets later..
-func saveTweets(q string, location [2]float64, radius int, seconds int, since, until, maxid string){
+func saveTweets(q string, location [2]float64, radius int, seconds int, since, until, maxid, tweetsavercomment string){
     geocode := fmt.Sprintf("%g,%g,%dkm", location[0], location[1], radius)
     loc := Location{
         Coordinates: location,
@@ -131,14 +137,14 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
         // log.Printf("\n\nQuery: %v", query.Encode())
         search, resp, err := searchTweets(query)
         if err != nil{
-            log.Fatal(err)
+            log.Print(err)
         }
         checkRateLimits(resp)
 
         tweets := search.Statuses()
         log.Printf("Got %d tweets", len(tweets))
         for _, t := range tweets{
-            processTweet(t, loc)
+            processTweet(t, loc, tweetsavercomment)
         }
         log.Printf(" -> Saved!")
 
@@ -147,7 +153,7 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
 
         query, err = search.NextQuery() // next page
         if err != nil {
-            log.Fatal(err)
+            log.Print(err)
         }
 
         // sleep
@@ -156,7 +162,7 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
 }
 
 // Save recent tweets about something in a specific location every X seconds
-func saveRecentTweets(q string, location [2]float64, radius int, seconds int){
+func saveRecentTweets(q string, location [2]float64, radius int, seconds int, tweetsavercomment string){
     geocode := fmt.Sprintf("%g,%g,%dkm", location[0], location[1], radius)
     loc := Location{
         Coordinates: location,
@@ -172,14 +178,14 @@ func saveRecentTweets(q string, location [2]float64, radius int, seconds int){
     for{
         search, resp, err := searchTweets(query)
         if err != nil{
-            log.Fatal(err)
+            log.Print(err)
         }
         checkRateLimits(resp)
 
         tweets := search.Statuses()
         log.Printf("Got %d tweets", len(tweets))
         for _, t := range tweets{
-            processTweet(t, loc)
+            processTweet(t, loc, tweetsavercomment)
         }
         log.Printf(" -> Saved!")
         
@@ -193,7 +199,11 @@ func saveRecentTweets(q string, location [2]float64, radius int, seconds int){
 
 func main(){
 
-    config, err := LoadConfig("./config.json")
+    // Command line options
+    configFile := flag.String("c", "./config.json", "Config file")
+    flag.Parse()
+
+    config, err := LoadConfig(*configFile)
     if err != nil{
         fmt.Printf("Error loading config [%s]\n", err)
         return
@@ -213,9 +223,9 @@ func main(){
     db.EnsureIndex()
 
     if config.SaveType == 0{
-        saveRecentTweets(config.Query, config.Location, config.Radius, config.Seconds)
+        saveRecentTweets(config.Query, config.Location, config.Radius, config.Seconds, config.Tweetssaver)
     }else if config.SaveType == 1{
-        saveTweets(config.Query, config.Location, config.Radius, config.Seconds, config.Since, config.Until, config.Maxid)   
+        saveTweets(config.Query, config.Location, config.Radius, config.Seconds, config.Since, config.Until, config.Maxid, config.Tweetssaver)   
     }
 
 }
