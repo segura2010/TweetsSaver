@@ -16,6 +16,7 @@ import (
     "github.com/kurrik/twittergo"
 
     "TweetsSaver/db"
+    "TweetsSaver/bot" // telegram bot to receive errors and keep all right
 )
 
 // MyConfig struct: for the user config to save tweets
@@ -45,6 +46,9 @@ type MyConfig struct {
     // DB info
     DbConfig MyDBConfig
 
+    // Telegram Bot Info
+    BotToken string // Token (keep it empty if you dont want to use a bot)
+    BotAdmin int64 // Admin (User ID to send errors) (keep it empty if you dont want to use a bot)
 }
 type MyDBConfig struct {
     Host string
@@ -100,6 +104,11 @@ func checkRateLimits(resp *twittergo.APIResponse){
     log.Printf("Rate Limit: %d/%d, Rate Limit Reset: %d (%s)", resp.RateLimitRemaining(), resp.RateLimit(), resp.RateLimitReset().Unix(), resp.RateLimitReset().Format(time.RFC1123))
 }
 
+func sendBotError(err string){
+    msg := fmt.Sprintf("[%s] Error: \n%s", config.Tweetssaver, err)
+    bot.SendMessage(config.BotAdmin, msg)
+}
+
 func checkInsertError(err error){
     if err == nil{
         return 
@@ -112,7 +121,9 @@ func checkInsertError(err error){
         // most probably is closed conexion (EOF)
         // reconnect
         log.Printf("ERROR: %s", errMsg)
+        sendBotError(errMsg)
         db.RefreshSession()
+        bot.SendMessage(config.BotAdmin, "["+ config.Tweetssaver +"] Session refreshed! It should work now!")
     }
 }
 
@@ -224,7 +235,8 @@ func main(){
     configFile := flag.String("c", "./config.json", "Config file")
     flag.Parse()
 
-    config, err := LoadConfig(*configFile)
+    var err error
+    config, err = LoadConfig(*configFile)
     if err != nil{
         fmt.Printf("Error loading config [%s]\n", err)
         return
@@ -243,6 +255,17 @@ func main(){
     db.CreateInstance(config.DbConfig.Host, config.DbConfig.Name, config.DbConfig.User, config.DbConfig.Pass)
     db.EnsureIndex()
 
+    // Prepare Telegram Bot
+    if config.BotToken != "" || config.BotToken != " "{
+        bot.CreateInstance(config.BotToken, config.Tweetssaver)
+        
+        if config.BotAdmin == 0{
+            log.Printf("BOT ADMIN NOT CONFIGURED! Errors wont arrive to your Telegram account!")
+        }
+    }
+
+    bot.SendMessage(config.BotAdmin, "["+ config.Tweetssaver +"] Starting download! :D")
+
     if config.SaveType == 0{
         saveRecentTweets(config.Query, config.Location, config.Radius, config.Seconds, config.Tweetssaver)
     }else if config.SaveType == 1{
@@ -250,18 +273,3 @@ func main(){
     }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

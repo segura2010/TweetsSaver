@@ -22,5 +22,8 @@
 		"name":"TweetsSaver",
 		"user":"",
 		"pass":""
-	}
+	},
+
+	"bottoken":"",
+	"botadmin": 0
 }
