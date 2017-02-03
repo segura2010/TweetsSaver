@@ -115,7 +115,7 @@ func checkInsertError(err error){
     }
 
     errMsg := err.Error()
-    isDuplicateIndexError := strings.Contains(errMsg, "duplicate key error index")
+    isDuplicateIndexError := strings.Contains(errMsg, "duplicate key")
 
     if !isDuplicateIndexError{
         // most probably is closed conexion (EOF)
