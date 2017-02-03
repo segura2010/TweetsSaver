@@ -8,6 +8,7 @@ import (
     "time"
     "net/url"
     "net/http"
+    "strings"
 
     "flag"
 
@@ -59,6 +60,7 @@ type Location struct {
 
 var (
     client *twittergo.Client
+    config MyConfig
 )
 
 func LoadConfig(filename string) (MyConfig, error){
@@ -98,7 +100,23 @@ func checkRateLimits(resp *twittergo.APIResponse){
     log.Printf("Rate Limit: %d/%d, Rate Limit Reset: %d (%s)", resp.RateLimitRemaining(), resp.RateLimit(), resp.RateLimitReset().Unix(), resp.RateLimitReset().Format(time.RFC1123))
 }
 
-func processTweet(t twittergo.Tweet, location Location, tweetsavercomment string){
+func checkInsertError(err error){
+    if err == nil{
+        return 
+    }
+
+    errMsg := err.Error()
+    isDuplicateIndexError := strings.Contains(errMsg, "duplicate key error index")
+
+    if !isDuplicateIndexError{
+        // most probably is closed conexion (EOF)
+        // reconnect
+        log.Printf("ERROR: %s", errMsg)
+        db.RefreshSession()
+    }
+}
+
+func processTweet(t twittergo.Tweet, location Location, tweetsavercomment string) (error){
     //fmt.Printf("\n\t%s", t.Text())
     if t["coordinates"] == nil{
         // sometimes it comes nil, so we put the location info
@@ -111,7 +129,8 @@ func processTweet(t twittergo.Tweet, location Location, tweetsavercomment string
     // add additional commet
     t["tweetssaver"] = tweetsavercomment
 
-    db.AddTweet(t)
+    _, err := db.AddTweet(t)
+    return err
 }
 
 // Save recent tweets about something in a specific location with id greater than maxid until YYYY-MM-DD
@@ -144,8 +163,9 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
         tweets := search.Statuses()
         log.Printf("Got %d tweets", len(tweets))
         for _, t := range tweets{
-            processTweet(t, loc, tweetsavercomment)
+            err = processTweet(t, loc, tweetsavercomment)
         }
+        checkInsertError(err)
         log.Printf(" -> Saved!")
 
         metadata := search.SearchMetadata()
@@ -185,8 +205,9 @@ func saveRecentTweets(q string, location [2]float64, radius int, seconds int, tw
         tweets := search.Statuses()
         log.Printf("Got %d tweets", len(tweets))
         for _, t := range tweets{
-            processTweet(t, loc, tweetsavercomment)
+            err = processTweet(t, loc, tweetsavercomment)
         }
+        checkInsertError(err)
         log.Printf(" -> Saved!")
         
         metadata := search.SearchMetadata()

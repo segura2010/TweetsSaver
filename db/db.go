@@ -2,19 +2,9 @@ package db
 
 
 import (
-    //"log"
-    //"time"
-    //"os"
-    //"io"
-    //"strings"
-    //"fmt"
-    //"net/http"
-    //"html"
-    //"encoding/json"
+    "log"
 
     "gopkg.in/mgo.v2"
-    //"gopkg.in/mgo.v2/bson"
-
 )
 
 type DB struct{
@@ -26,12 +16,12 @@ type DB struct{
 var instance *DB = nil
 
 func CreateInstance(host, name, user, pass string) *DB {
-    if instance == nil {
+    if instance == nil{
         instance = &DB{Name:name, Host:host}
 
         sess, err := mgo.Dial(instance.Host)
         if err != nil{
-            panic(err)
+            log.Printf("ERROR: %s", err)
         }
 
         instance.MongoSession = sess
@@ -40,16 +30,19 @@ func CreateInstance(host, name, user, pass string) *DB {
             instance.MongoSession.DB(instance.Name).Login(user, pass)
             
             if err != nil{
-                panic(err)
+                log.Printf("ERROR: %s", err)
             }
         }
-
     }
     return instance
 }
 
 func GetInstance() *DB {
     return instance
+}
+
+func RefreshSession(){
+    instance.MongoSession.Refresh()
 }
 
 func GetDB() (*mgo.Database){
