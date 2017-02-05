@@ -5,6 +5,7 @@ import (
     "log"
 
     "gopkg.in/mgo.v2"
+    "gopkg.in/mgo.v2/bson"
 )
 
 type DB struct{
@@ -67,4 +68,19 @@ func AddTweet(u map[string]interface{}) (map[string]interface{}, error){
 	return u, err
 }
 
+func GetTotalTweetsCount() (int, error){
+    db := GetDB()
+
+    c, err := db.C("tweet").Count()
+
+    return c, err
+}
+
+func GetTweetsCountByComment(comment string) (int, error){
+    db := GetDB()
+
+    c, err := db.C("tweet").Find(bson.M{"tweetssaver": comment}).Count()
+
+    return c, err
+}
 

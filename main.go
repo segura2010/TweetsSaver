@@ -167,6 +167,7 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
         // log.Printf("\n\nQuery: %v", query.Encode())
         search, resp, err := searchTweets(query)
         if err != nil{
+            sendBotError(err.Error())
             log.Print(err)
         }
         checkRateLimits(resp)
@@ -209,6 +210,7 @@ func saveRecentTweets(q string, location [2]float64, radius int, seconds int, tw
     for{
         search, resp, err := searchTweets(query)
         if err != nil{
+            sendBotError(err.Error())
             log.Print(err)
         }
         checkRateLimits(resp)
