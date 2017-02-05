@@ -31,7 +31,7 @@ type MyConfig struct {
     Query string
     Since string // YYYY-MM-DD
     Until string // YYYY-MM-DD
-    Location [2]float64 // longitude, latitude
+    Location [2]float64 // latitude, longitude
     Radius int // in km (be carefully, radius > 5km will result in empty location info: https://twittercommunity.com/t/twitter-search-api-always-return-geo-null/66166/6)
     Maxid string // max id to continue the search from this id
 
