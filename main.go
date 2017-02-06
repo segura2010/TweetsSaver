@@ -183,19 +183,21 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
 
             tweets := search.Statuses()
             log.Printf("Got %d tweets", len(tweets))
+            maxIdTweet := tweets[0].Id() // get maxID from first tweet
             for _, t := range tweets{
                 err = processTweet(t, loc, tweetsavercomment)
+                // update maxid
+                if t.Id() < maxIdTweet{
+                    maxIdTweet = t.Id()
+                    maxid = t.IdStr()
+                }
             }
             checkInsertError(err)
             log.Printf(" -> Saved!")
 
-            metadata := search.SearchMetadata()
-            log.Printf("MaxID: %s", metadata["max_id_str"])
-
-            query, err = search.NextQuery() // next page
-            if err != nil {
-                log.Print(err)
-            }
+            // manually iterate over pages..
+            query.Set("max_id", maxid)
+            log.Printf("MaxID: %s", maxid)
         }
 
         // sleep
