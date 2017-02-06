@@ -131,13 +131,18 @@ func processTweet(t twittergo.Tweet, location Location, tweetsavercomment string
     //fmt.Printf("\n\t%s", t.Text())
     if t["coordinates"] == nil{
         // sometimes it comes nil, so we put the location info
-        t["coordinates"] = location
+        if location.Coordinates[0] != 0.0 && location.Coordinates[1] != 0.0{
+            t["coordinates"] = location
+        }else{
+            // avoid save, we only want geolocated tweets
+            return nil
+        }
     }
     // Unix Timestamp for time
     t["created_at_unix"] = t.CreatedAt().Unix()
     // delete user info
     t["user"] = t.User().IdStr()
-    // add additional commet
+    // add additional comment
     t["tweetssaver"] = tweetsavercomment
 
     _, err := db.AddTweet(t)
@@ -147,17 +152,21 @@ func processTweet(t twittergo.Tweet, location Location, tweetsavercomment string
 // Save recent tweets about something in a specific location with id greater than maxid until YYYY-MM-DD
 // to save tweets later..
 func saveTweets(q string, location [2]float64, radius int, seconds int, since, until, maxid, tweetsavercomment string){
-    geocode := fmt.Sprintf("%g,%g,%dkm", location[0], location[1], radius)
+
+    query := url.Values{}
+    query.Set("q", fmt.Sprintf("%s since:%s until:%s", q, since, until))
+    query.Set("count", "110")
+    query.Set("result_type", "recent")
+
     loc := Location{
         Coordinates: location,
         Type: "Point",
     }
 
-    query := url.Values{}
-    query.Set("q", fmt.Sprintf("%s since:%s until:%s", q, since, until))
-    query.Set("geocode", geocode)
-    query.Set("count", "110")
-    query.Set("result_type", "recent")
+    if location[0] != 0.0 && location[1] != 0.0{
+        geocode := fmt.Sprintf("%g,%g,%dkm", location[0], location[1], radius)
+        query.Set("geocode", geocode)
+    }
 
     if maxid != "" || maxid != "0"{
         query.Set("max_id", maxid)
@@ -169,23 +178,24 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
         if err != nil{
             sendBotError(err.Error())
             log.Print(err)
-        }
-        checkRateLimits(resp)
+        }else{  // if Twitter returns error, sleep and retry
+            checkRateLimits(resp)
 
-        tweets := search.Statuses()
-        log.Printf("Got %d tweets", len(tweets))
-        for _, t := range tweets{
-            err = processTweet(t, loc, tweetsavercomment)
-        }
-        checkInsertError(err)
-        log.Printf(" -> Saved!")
+            tweets := search.Statuses()
+            log.Printf("Got %d tweets", len(tweets))
+            for _, t := range tweets{
+                err = processTweet(t, loc, tweetsavercomment)
+            }
+            checkInsertError(err)
+            log.Printf(" -> Saved!")
 
-        metadata := search.SearchMetadata()
-        log.Printf("MaxID: %s", metadata["max_id_str"])
+            metadata := search.SearchMetadata()
+            log.Printf("MaxID: %s", metadata["max_id_str"])
 
-        query, err = search.NextQuery() // next page
-        if err != nil {
-            log.Print(err)
+            query, err = search.NextQuery() // next page
+            if err != nil {
+                log.Print(err)
+            }
         }
 
         // sleep
@@ -195,36 +205,41 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
 
 // Save recent tweets about something in a specific location every X seconds
 func saveRecentTweets(q string, location [2]float64, radius int, seconds int, tweetsavercomment string){
-    geocode := fmt.Sprintf("%g,%g,%dkm", location[0], location[1], radius)
+
+    query := url.Values{}
+    query.Set("q", q)
+    query.Set("count", "110")
+    query.Set("result_type", "recent")
+
     loc := Location{
         Coordinates: location,
         Type: "Point",
     }
 
-    query := url.Values{}
-    query.Set("q", q)
-    query.Set("geocode", geocode)
-    query.Set("count", "110")
-    query.Set("result_type", "recent")
+    if location[0] != 0.0 && location[1] != 0.0{
+        geocode := fmt.Sprintf("%g,%g,%dkm", location[0], location[1], radius)
+        query.Set("geocode", geocode)
+    }
 
     for{
         search, resp, err := searchTweets(query)
         if err != nil{
             sendBotError(err.Error())
             log.Print(err)
-        }
-        checkRateLimits(resp)
+        }else{  // if Twitter returns error, sleep and retry
+            checkRateLimits(resp)
 
-        tweets := search.Statuses()
-        log.Printf("Got %d tweets", len(tweets))
-        for _, t := range tweets{
-            err = processTweet(t, loc, tweetsavercomment)
+            tweets := search.Statuses()
+            log.Printf("Got %d tweets", len(tweets))
+            for _, t := range tweets{
+                err = processTweet(t, loc, tweetsavercomment)
+            }
+            checkInsertError(err)
+            log.Printf(" -> Saved!")
+            
+            metadata := search.SearchMetadata()
+            log.Printf("MaxID: %s", metadata["max_id_str"])
         }
-        checkInsertError(err)
-        log.Printf(" -> Saved!")
-        
-        metadata := search.SearchMetadata()
-        log.Printf("MaxID: %s", metadata["max_id_str"])
 
         // sleep
         time.Sleep(time.Duration(seconds) * time.Second)
@@ -264,9 +279,9 @@ func main(){
         if config.BotAdmin == 0{
             log.Printf("BOT ADMIN NOT CONFIGURED! Errors wont arrive to your Telegram account!")
         }
+        bot.SendMessage(config.BotAdmin, "["+ config.Tweetssaver +"] Starting download! :D")
     }
 
-    bot.SendMessage(config.BotAdmin, "["+ config.Tweetssaver +"] Starting download! :D")
 
     if config.SaveType == 0{
         saveRecentTweets(config.Query, config.Location, config.Radius, config.Seconds, config.Tweetssaver)
