@@ -34,6 +34,7 @@ type MyConfig struct {
     Location [2]float64 // latitude, longitude
     Radius int // in km (be carefully, radius > 5km will result in empty location info: https://twittercommunity.com/t/twitter-search-api-always-return-geo-null/66166/6)
     Maxid string // max id to continue the search from this id
+    UntilId uint64 // min id to do the search (when download it goes from maxid to untilid)
 
     Tweetssaver string // additional comment to include in each tweet (for example to know what machine downloaded the tweet)
     
@@ -109,6 +110,11 @@ func sendBotError(err string){
     bot.SendMessage(config.BotAdmin, msg)
 }
 
+func sendBotInfo(info string){
+    msg := fmt.Sprintf("[%s] \n%s", config.Tweetssaver, info)
+    bot.SendMessage(config.BotAdmin, msg)
+}
+
 func checkInsertError(err error){
     if err == nil{
         return 
@@ -151,7 +157,7 @@ func processTweet(t twittergo.Tweet, location Location, tweetsavercomment string
 
 // Save recent tweets about something in a specific location with id greater than maxid until YYYY-MM-DD
 // to save tweets later..
-func saveTweets(q string, location [2]float64, radius int, seconds int, since, until, maxid, tweetsavercomment string){
+func saveTweets(q string, location [2]float64, radius int, seconds int, since, until, maxid, tweetsavercomment string, untilId uint64){
 
     query := url.Values{}
     query.Set("q", fmt.Sprintf("%s since:%s until:%s", q, since, until))
@@ -194,6 +200,13 @@ func saveTweets(q string, location [2]float64, radius int, seconds int, since, u
             }
             checkInsertError(err)
             log.Printf(" -> Saved!")
+
+            // check if reached UntilId, if true -> end
+            if maxIdTweet < untilId{
+                log.Printf("UntilId reached! Finished!")
+                sendBotInfo("UntilId reached! Finished!")
+                return
+            }
 
             // manually iterate over pages..
             query.Set("max_id", maxid)
@@ -288,7 +301,7 @@ func main(){
     if config.SaveType == 0{
         saveRecentTweets(config.Query, config.Location, config.Radius, config.Seconds, config.Tweetssaver)
     }else if config.SaveType == 1{
-        saveTweets(config.Query, config.Location, config.Radius, config.Seconds, config.Since, config.Until, config.Maxid, config.Tweetssaver)   
+        saveTweets(config.Query, config.Location, config.Radius, config.Seconds, config.Since, config.Until, config.Maxid, config.Tweetssaver, config.UntilId)   
     }
 
 }
